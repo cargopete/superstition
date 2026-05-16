@@ -1,0 +1,100 @@
+package superstition:detector@0.1.0;
+
+interface corpus {
+    /// Opaque handle to the frozen corpus. The host vends this; the
+    /// detector cannot construct one.
+    resource corpus-handle;
+
+    /// A streaming iterator over rows of a corpus table.
+    resource row-stream {
+        next: func() -> option<row>;
+    }
+
+    record row {
+        fields: list<tuple<string, value>>,
+    }
+
+    variant value {
+        u64-val(u64),
+        i64-val(s64),
+        f64-val(f64),
+        string-val(string),
+        bytes-val(list<u8>),
+        bool-val(bool),
+        null-val,
+    }
+
+    variant corpus-error {
+        no-such-table(string),
+        schema-mismatch(string),
+        internal(string),
+    }
+
+    /// Stream rows from a named table. Host enforces read-only access.
+    iterator: func(handle: borrow<corpus-handle>, table: string)
+        -> result<row-stream, corpus-error>;
+}
+
+interface detector {
+    use corpus.{corpus-handle};
+
+    /// Called once at instantiation. Returns static metadata.
+    describe: func() -> metadata;
+
+    /// Called once per run. Returns raw counts; the host computes p-values.
+    /// The detector never returns its own p-value.
+    test: func(handle: borrow<corpus-handle>)
+        -> result<test-result, detector-error>;
+
+    record metadata {
+        /// Human-readable, English, <= 120 chars.
+        description: string,
+        /// Optional hypothesis statement, <= 500 chars.
+        hypothesis: string,
+        /// Test family for FDR grouping, e.g. "temporal-cyclic".
+        family: string,
+        /// Detector schema version.
+        version: string,
+    }
+
+    record test-result {
+        /// Observed counts (contingency table or equivalent).
+        counts: list<u64>,
+        /// Total sample size (denominator).
+        sample-size: u64,
+        /// Which statistical test the host should apply.
+        test-type: test-type,
+        /// Optional debug breadcrumbs; preserved in the feed.
+        detail: string,
+    }
+
+    variant test-type {
+        /// 2x2 contingency, Fisher exact (two-sided).
+        fisher-exact,
+        /// k-bin frequency vs expected uniform, chi-squared.
+        chi-squared(u32),
+        /// k-sample Kolmogorov-Smirnov for distribution shape.
+        kolmogorov-smirnov,
+        /// Bootstrap CI; host runs permutation against the corpus.
+        bootstrap(bootstrap-params),
+    }
+
+    record bootstrap-params {
+        statistic-name: string,
+        /// Host clamps to a reasonable maximum.
+        permutations: u32,
+    }
+
+    variant detector-error {
+        corpus-error(string),
+        invalid-test(string),
+        out-of-time,
+        out-of-memory,
+        internal(string),
+    }
+}
+
+world detector-world {
+    import corpus;
+    export detector;
+}

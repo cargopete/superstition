@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "crates/detectors/dow-erc20",
+]
+resolver = "2"
