@@ -1,0 +1,76 @@
+{
+  "seen": [
+    {
+      "name": "hour_of_day_uniform",
+      "description": "UTC hour-of-day shows no systematic bias in transfer timing",
+      "hypothesis": "Transfers are uniformly distributed across 24 hours of UTC day",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 24,
+      "notes": "Extract hour = (block_timestamp % 86400) / 3600. Count transfers in each hour 0-23. Null: uniform distribution (expected frequency = total / 24 per bin)."
+    },
+    {
+      "name": "weekday_am_pm_independence",
+      "description": "AM/PM timing and weekday/weekend are independent transfer drivers",
+      "hypothesis": "AM/PM timing and weekday/weekend occurrence are statistically independent",
+      "family": "temporal-cyclic",
+      "test_type": "fisher_exact",
+      "bins": 4,
+      "notes": "2×2 contingency: (AM vs PM) × (weekday Mon-Fri vs weekend Sat-Sun). Extract hour and day-of-week from block_timestamp. Return counts [AM-weekday, AM-weekend, PM-weekday, PM-weekend]."
+    },
+    {
+      "name": "seconds_within_minute",
+      "description": "Seconds component shows no systematic bias within each minute",
+      "hypothesis": "Transfer timestamp seconds component is uniformly distributed across 0-59",
+      "family": "value-distribution",
+      "test_type": "ks",
+      "bins": 60,
+      "notes": "Extract second = block_timestamp % 60. Frequency array of 60 bins for KS test against uniform[0,60). Detects sub-second precision artifacts or miner timing patterns."
+    },
+    {
+      "name": "day_of_week_chi2",
+      "description": "ERC-20 transfers are uniformly distributed across days of the week",
+      "hypothesis": "Null hypothesis: block_timestamp shows no systematic bias by day of week (uniform across Monday–Sunday)",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 7,
+      "notes": "Extract day of week (0=Monday, 6=Sunday) from Unix timestamp; compute 7-category histogram; df = 6"
+    },
+    {
+      "name": "month_of_year_chi2",
+      "description": "ERC-20 transfers show no seasonal pattern across calendar months",
+      "hypothesis": "Null hypothesis: block_timestamp is uniformly distributed across the 12 calendar months",
+      "family": "temporal-trend",
+      "test_type": "chi_squared",
+      "bins": 12,
+      "notes": "Extract calendar month (1–12) from Unix timestamp; compute 12-category histogram; df = 11"
+    },
+    {
+      "name": "timestamp_parity_magnitude",
+      "description": "Low-order timestamp bit is independent of transaction magnitude era",
+      "hypothesis": "Null hypothesis: the last bit of block_timestamp (even vs odd) is independent of whether timestamp is in lower or upper half of corpus range",
+      "family": "value-distribution",
+      "test_type": "fisher_exact",
+      "bins": 4,
+      "notes": "2×2 contingency: {even/odd last bit} × {below/above median timestamp}; format counts as [even_low, even_high, odd_low, odd_high]"
+    }
+  ],
+  "significant": [
+    {
+      "name": "hour_of_day_uniform",
+      "description": "UTC hour-of-day shows no systematic bias in transfer timing",
+      "family": "temporal-cyclic",
+      "p_value": 0.0,
+      "effect_size": 0.12298846237863481,
+      "pattern_id": "e86c43a752aca30e"
+    },
+    {
+      "name": "day_of_week_chi2",
+      "description": "ERC-20 transfers are uniformly distributed across days of the week",
+      "family": "temporal-cyclic",
+      "p_value": 0.0,
+      "effect_size": 0.12499325181784814,
+      "pattern_id": "a8e5bf3b954d2afb"
+    }
+  ]
+}

@@ -6,7 +6,7 @@ Cargo.lock
 /generated/
 /corpus/
 examples/corpus/
-examples/feed.json
-examples/state.json
 feed.json
 state.json
+!examples/feed.json
+!examples/state.json
