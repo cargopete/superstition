@@ -5,5 +5,8 @@ Cargo.lock
 **/src/bindings.rs
 /generated/
 /corpus/
+examples/corpus/
+examples/feed.json
+examples/state.json
 feed.json
 state.json

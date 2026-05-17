@@ -7,6 +7,10 @@ edition = "2021"
 name = "gen-fixture"
 path = "src/bin/gen_fixture.rs"
 
+[[bin]]
+name = "gen-example"
+path = "src/bin/gen_example.rs"
+
 [dependencies]
 anyhow  = "1"
 blake3  = "1"
