@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "crates/detectors/dow-erc20",
+    "crates/host",
 ]
 resolver = "2"

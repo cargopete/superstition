@@ -1,0 +1,13 @@
+[package]
+name = "superstition-host"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "host"
+path = "src/main.rs"
+
+[dependencies]
+wasmtime = { version = "44", features = ["component-model"] }
+wasmtime-wasi = "44"
+anyhow = "1"
