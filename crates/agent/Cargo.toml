@@ -1,0 +1,18 @@
+[package]
+name = "superstition-agent"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "agent"
+path = "src/main.rs"
+
+[dependencies]
+superstition-host   = { path = "../host" }
+superstition-corpus = { path = "../corpus" }
+superstition-scorer = { path = "../scorer" }
+superstition-feed   = { path = "../feed" }
+anyhow     = "1"
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror  = "2"

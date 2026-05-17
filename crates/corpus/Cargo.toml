@@ -1,0 +1,15 @@
+[package]
+name = "superstition-corpus"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "gen-fixture"
+path = "src/bin/gen_fixture.rs"
+
+[dependencies]
+anyhow  = "1"
+blake3  = "1"
+parquet = "53"
+arrow   = { version = "53", default-features = false, features = ["ipc"] }
+thiserror = "2"

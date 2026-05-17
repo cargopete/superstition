@@ -1,0 +1,31 @@
+[package]
+name = "superstition-feed"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "superstition_feed"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "verify"
+path = "src/bin/verify.rs"
+
+[dependencies]
+superstition-host   = { path = "../host" }
+superstition-corpus = { path = "../corpus" }
+superstition-scorer = { path = "../scorer" }
+
+axum     = "0.7"
+tokio    = { version = "1", features = ["full"] }
+serde    = { version = "1", features = ["derive"] }
+serde_json = "1"
+blake3   = "1"
+base64   = "0.22"
+anyhow   = "1"
+thiserror = "2"
+chrono   = { version = "0.4", features = ["serde"] }

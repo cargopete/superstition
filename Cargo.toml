@@ -1,6 +1,13 @@
 [workspace]
 members = [
     "crates/detectors/dow-erc20",
+    "crates/detectors/det-timeout",
+    "crates/detectors/det-panic",
+    "crates/detectors/det-bad-counts",
     "crates/host",
+    "crates/scorer",
+    "crates/corpus",
+    "crates/agent",
+    "crates/feed",
 ]
 resolver = "2"

@@ -1,0 +1,80 @@
+package superstition:detector@0.1.0;
+
+interface corpus {
+    resource corpus-handle;
+
+    resource row-stream {
+        next: func() -> option<row>;
+    }
+
+    record row {
+        fields: list<tuple<string, value>>,
+    }
+
+    variant value {
+        u64-val(u64),
+        i64-val(s64),
+        f64-val(f64),
+        string-val(string),
+        bytes-val(list<u8>),
+        bool-val(bool),
+        null-val,
+    }
+
+    variant corpus-error {
+        no-such-table(string),
+        schema-mismatch(string),
+        internal(string),
+    }
+
+    iterator: func(handle: borrow<corpus-handle>, table: string)
+        -> result<row-stream, corpus-error>;
+}
+
+interface detector {
+    use corpus.{corpus-handle};
+
+    describe: func() -> metadata;
+
+    test: func(handle: borrow<corpus-handle>)
+        -> result<test-result, detector-error>;
+
+    record metadata {
+        description: string,
+        hypothesis: string,
+        family: string,
+        version: string,
+    }
+
+    record test-result {
+        counts: list<u64>,
+        sample-size: u64,
+        test-type: test-type,
+        detail: string,
+    }
+
+    variant test-type {
+        fisher-exact,
+        chi-squared(u32),
+        kolmogorov-smirnov,
+        bootstrap(bootstrap-params),
+    }
+
+    record bootstrap-params {
+        statistic-name: string,
+        permutations: u32,
+    }
+
+    variant detector-error {
+        corpus-error(string),
+        invalid-test(string),
+        out-of-time,
+        out-of-memory,
+        internal(string),
+    }
+}
+
+world detector-world {
+    import corpus;
+    export detector;
+}

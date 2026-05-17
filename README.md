@@ -91,14 +91,27 @@ convention.
 ```
 superstition/
 ├── wit/superstition.wit          canonical WIT (corpus + detector interfaces)
-├── crates/
-│   ├── host/                     Wasmtime host binary
-│   │   └── src/main.rs
-│   └── detectors/
-│       └── dow-erc20/            reference detector: ERC-20 day-of-week chi-squared
-│           ├── src/lib.rs
-│           └── wit/world.wit
-└── rust-toolchain.toml           pinned stable + wasm32-wasip2
+└── crates/
+    ├── host/                     Wasmtime host (lib + CLI)
+    │   └── tests/adversarial.rs  hardening integration tests
+    ├── scorer/                   statistical tests + BH FDR correction
+    │   └── src/
+    │       ├── stats.rs          chi-squared, Fisher exact, KS, bootstrap
+    │       └── fdr.rs            batch BH, q-values, sequential BH
+    ├── corpus/                   parquet reader (BLAKE3 corpus_id)
+    ├── agent/                    LLM agent loop
+    │   └── src/
+    │       ├── api.rs            claude CLI shell-out (no API key needed)
+    │       ├── codegen.rs        hypothesis gen (Haiku) + code-gen (Sonnet)
+    │       ├── builder.rs        cargo-component build pipeline
+    │       ├── state.rs          persistent state (seen + significant)
+    │       └── main.rs           outer loop + --loop-interval daemon mode
+    ├── feed/                     pattern store + axum feed server + verify CLI
+    └── detectors/
+        ├── dow-erc20/            reference: ERC-20 day-of-week chi-squared
+        ├── det-timeout/          adversarial: infinite loop
+        ├── det-panic/            adversarial: deliberate trap
+        └── det-bad-counts/       adversarial: mismatched count length
 ```
 
 ---
@@ -108,38 +121,91 @@ superstition/
 **Prerequisites:** Rust stable, `cargo-component`, `wasm-tools`.
 
 ```bash
-# install tooling (once)
 cargo install cargo-component wasm-tools
-
-# build the reference detector
-cargo component build --release -p dow-erc20
-
-# build the host
-cargo build --release -p superstition-host
 ```
 
-**Run the reference detector through the host (stub corpus):**
+**Reference detector + host:**
 
 ```bash
+cargo component build --release -p dow-erc20
+cargo build --release -p superstition-host
+
+# run against the 7-row stub corpus
 cargo run -p superstition-host -- target/wasm32-wasip1/release/dow_erc20.wasm
 ```
 
-Expected output (7-row stub corpus, one row per day of the week):
+Expected output (stub corpus is uniform, so p=1.0 by construction):
 
 ```
 description : ERC-20 transfers by day of week
 hypothesis  : ERC-20 transfer counts are not uniformly distributed across days of the week.
 family      : temporal-cyclic
-version     : 0.1.0
 
 counts      : [1, 1, 1, 1, 1, 1, 1]
 sample_size : 7
 test_type   : TestType::ChiSquared(6)
 detail      : Sun=1 Mon=1 Tue=1 Wed=1 Thu=1 Fri=1 Sat=1
+
+p-value     : 1.000000e0
+effect_size : 0.0000  (floor passed: false)
+verdict     : not significant
 ```
 
-With the real corpus (M3), counts will be in the billions and the chi-squared test
-will return a real p-value.
+**Adversarial test suite (M6 hardening):**
+
+```bash
+cargo component build --release -p det-timeout -p det-panic -p det-bad-counts
+cargo test -p superstition-host --test adversarial
+```
+
+---
+
+## Running
+
+**Agent loop** (requires Claude Code CLI for LLM calls):
+
+```bash
+cargo build --release -p superstition-agent
+
+# one-shot: 3 iterations × 5 hypotheses each
+./target/release/agent \
+  --corpus /path/to/corpus \
+  --feed feed.json \
+  --state state.json \
+  --workspace . \
+  --iterations 3 \
+  --hypotheses 5
+
+# daemon mode: repeat every 6 hours
+./target/release/agent \
+  --corpus /path/to/corpus \
+  --feed feed.json \
+  --state state.json \
+  --workspace . \
+  --iterations 3 \
+  --hypotheses 5 \
+  --loop-interval 21600
+```
+
+State persists in `state.json` across invocations. Significant patterns feed back
+into subsequent hypothesis generation (Stage H evolutionary loop).
+
+**Feed server:**
+
+```bash
+cargo build --release -p superstition-feed
+FEED_PATH=feed.json PORT=8080 ./target/release/server
+```
+
+Serves HTML at `/`, RSS at `/feed.rss`, JSON API at `/api/patterns`.
+
+**Verify a published pattern:**
+
+```bash
+./target/release/superstition-verify <pattern-id> \
+  --feed feed.json \
+  --corpus /path/to/corpus
+```
 
 ---
 
@@ -149,12 +215,12 @@ will return a real p-value.
 |---|--------|-------------|
 | M0 | ✅ | WIT contract, reference detector (`dow-erc20`), workspace |
 | M1 | ✅ | Wasmtime host: loads detector, vends corpus handle, enforces caps |
-| M2 | ⬜ | Scorer: 4 statistical tests + group-aware sequential BH |
-| M3 | ⬜ | Full corpus (cryo parquet) + multi-detector orchestration |
-| M4 | ⬜ | Agent loop: Haiku hypothesis gen → Sonnet code-gen → score |
-| M5 | ⬜ | Public feed (web + RSS + `verify` CLI) |
-| M6 | ⬜ | Hardening + adversarial test suite + first public broadcast |
-| M7 | ⬜ | Continuous operation (cron + evolutionary feedback loop) |
+| M2 | ✅ | Scorer: 4 statistical tests + group-aware sequential BH |
+| M3 | ✅ | Full corpus (cryo parquet) + multi-detector orchestration |
+| M4 | ✅ | Agent loop: Haiku hypothesis gen → Sonnet code-gen → score |
+| M5 | ✅ | Public feed (web + RSS + `verify` CLI) |
+| M6 | ✅ | Hardening + adversarial test suite + first public broadcast |
+| M7 | ✅ | Continuous operation (cron + evolutionary feedback loop) |
 
 ---
 

@@ -3,6 +3,10 @@ name = "superstition-host"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "superstition_host"
+path = "src/lib.rs"
+
 [[bin]]
 name = "host"
 path = "src/main.rs"
@@ -11,3 +15,5 @@ path = "src/main.rs"
 wasmtime = { version = "44", features = ["component-model"] }
 wasmtime-wasi = "44"
 anyhow = "1"
+superstition-scorer = { path = "../scorer" }
+superstition-corpus = { path = "../corpus" }
