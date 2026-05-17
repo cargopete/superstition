@@ -74,6 +74,20 @@ impl Corpus {
         self.tables.contains_key(table)
     }
 
+    /// Return the column names for every table in the corpus.
+    pub fn column_names(&self) -> Result<HashMap<String, Vec<String>>> {
+        let mut result = HashMap::new();
+        for (table, path) in &self.tables {
+            let file = File::open(path)
+                .with_context(|| format!("reading schema of {}", path.display()))?;
+            let builder = ParquetRecordBatchReaderBuilder::try_new(file)?;
+            let fields: Vec<String> =
+                builder.schema().fields().iter().map(|f| f.name().clone()).collect();
+            result.insert(table.clone(), fields);
+        }
+        Ok(result)
+    }
+
     /// Read all rows from a parquet table into memory.
     ///
     /// For M3 (test fixture ≤ 100 k rows) this is fine.  M4 will add lazy

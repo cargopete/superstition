@@ -20,7 +20,26 @@ fn main() -> Result<()> {
     let corpus = Corpus::open(&cfg.corpus_dir)
         .with_context(|| format!("opening corpus {}", cfg.corpus_dir.display()))?;
 
+    // Build corpus schema string for prompts.
+    let schema_map = corpus.column_names()
+        .context("reading corpus schema")?;
+    let mut table_names: Vec<&str> = schema_map.keys().map(|s| s.as_str()).collect();
+    table_names.sort();
+    let corpus_schema = table_names
+        .iter()
+        .map(|t| {
+            let cols = schema_map[*t]
+                .iter()
+                .map(|c| format!("    {c}  uint64"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("  Table: {t}\n{cols}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
     println!("corpus_id  : {}", corpus.corpus_id);
+    println!("tables     : {}", table_names.join(", "));
     println!("iterations : {}", cfg.iterations);
     println!("hypotheses : {} per iteration", cfg.hypotheses_per_iter);
     if let Some(secs) = cfg.loop_interval {
@@ -48,7 +67,7 @@ fn main() -> Result<()> {
 
             // ── step 1: generate hypotheses (with Stage H feedback) ──
             let hypotheses =
-                codegen::generate_hypotheses(&client, &st.seen, &st.significant, cfg.hypotheses_per_iter)
+                codegen::generate_hypotheses(&client, &st.seen, &st.significant, cfg.hypotheses_per_iter, &corpus_schema)
                     .context("hypothesis generation")?;
             println!("  generated {} hypotheses", hypotheses.len());
 
@@ -59,7 +78,7 @@ fn main() -> Result<()> {
                 st.add_seen(hyp.clone());
 
                 // ── step 2: generate detector code ──
-                let mut code = match codegen::generate_detector_code(&client, hyp) {
+                let mut code = match codegen::generate_detector_code(&client, hyp, &corpus_schema) {
                     Ok(c) => c,
                     Err(e) => {
                         eprintln!("      codegen failed: {e}");
@@ -74,7 +93,7 @@ fn main() -> Result<()> {
                         Err(e) => {
                             eprintln!("      build error — retrying with fix...");
                             let err_str = e.to_string();
-                            match codegen::fix_detector_code(&client, hyp, &code, &err_str) {
+                            match codegen::fix_detector_code(&client, hyp, &code, &err_str, &corpus_schema) {
                                 Ok(fixed) => {
                                     code = fixed;
                                     match builder::build_detector(&cfg.workspace_root, &hyp.name, &code) {

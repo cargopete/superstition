@@ -1,0 +1,250 @@
+{
+  "seen": [
+    {
+      "name": "moon_phase_btc_distribution",
+      "description": "Bitcoin closing price distribution differs significantly during full moons vs other lunar phases",
+      "hypothesis": "BTC closing price frequency distributions are identical during full-moon and non-full-moon days",
+      "family": "temporal-cyclic",
+      "test_type": "ks",
+      "bins": 10,
+      "notes": "Join btc_daily + moon_phases on timestamp; partition close_usd_cents into two subsets (is_full_moon=1 vs 0); discretize each to 10 equipartition bins; KS test on frequency arrays"
+    },
+    {
+      "name": "eth_dow_trade_count",
+      "description": "Ethereum trade count exhibits strong day-of-week seasonality (not uniform across weekdays)",
+      "hypothesis": "ETH trade counts are uniformly distributed across all days of the week (no day-of-week effect)",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 7,
+      "notes": "Extract day-of-week (0–6) from eth_daily.timestamp; bin trade_count by day; chi_squared(df=6) tests null of equal expected counts per day"
+    },
+    {
+      "name": "btc_vol_sp500_coupling",
+      "description": "High Bitcoin volume days significantly coincide with S&P 500 up-days (not independent)",
+      "hypothesis": "Bitcoin trade volume is independent of S&P 500 daily closing direction",
+      "family": "value-distribution",
+      "test_type": "fisher_exact",
+      "bins": 4,
+      "notes": "Join btc_daily + sp500_daily by timestamp; binary threshold BTC volume at median; binary threshold SP500 (close > open); 2×2 contingency: [high_vol∩up, high_vol∩down, low_vol∩up, low_vol∩down]"
+    },
+    {
+      "name": "eth_tvl_monthly_seasonality",
+      "description": "Ethereum TVL exhibits non-uniform clustering across calendar months (strong monthly seasonality)",
+      "hypothesis": "ETH TVL is uniformly distributed across all calendar months (no seasonal pattern)",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 12,
+      "notes": "Extract calendar month (1–12) from eth_tvl_daily.timestamp; bin TVL_usd_millions by month; chi_squared(df=11) rejects uniform hypothesis if seasonal spikes exist"
+    },
+    {
+      "name": "btc_closing_momentum",
+      "description": "Bitcoin closing price exhibits lag-1 autocorrelation significantly different from random noise",
+      "hypothesis": "BTC closing prices follow white noise; lag-1 autocorrelation under random permutation has zero expected value",
+      "family": "temporal-trend",
+      "test_type": "bootstrap",
+      "bins": 1000,
+      "notes": "Sort btc_daily by timestamp; compute lag-1 Pearson correlation ρ(close[i], close[i−1]); bootstrap permute via shuffled timestamps; 1000 resamples; test deviation of observed ρ from permutation null"
+    },
+    {
+      "name": "eth_btc_premium_high_btc_vol",
+      "description": "Ethereum trades at higher premium to Bitcoin when Bitcoin volume spikes",
+      "hypothesis": "Ethereum-to-Bitcoin price ratio is independent of Bitcoin trading volume",
+      "family": "value-distribution",
+      "test_type": "fisher_exact",
+      "bins": 4,
+      "notes": "Bin BTC volume by median (high/low). Compute ETH/BTC close price ratio, bin by median (high/low). 2×2 contingency: BTC_vol × ETH/BTC_ratio. Test independence."
+    },
+    {
+      "name": "sp500_btc_volume_coupling",
+      "description": "Bitcoin volume distribution shifts when S&P 500 volume is elevated",
+      "hypothesis": "Bitcoin volume distribution is independent of S&P 500 volume level",
+      "family": "value-distribution",
+      "test_type": "chi_squared",
+      "bins": 4,
+      "notes": "Bin BTC volume into quartiles (4 bins). Classify S&P volume as high/low (above/below median). 2×4 contingency (S&P level × BTC quartile). Chi-squared df=3 tests distribution shift."
+    },
+    {
+      "name": "btc_momentum_up_clustering",
+      "description": "Bitcoin up-days exhibit positive serial correlation",
+      "hypothesis": "Bitcoin daily price direction (up/down) is random with no serial dependence",
+      "family": "temporal-trend",
+      "test_type": "chi_squared",
+      "bins": 4,
+      "notes": "Classify each day as up (close > open) or down. Create 2×2 contingency: yesterday_direction × today_direction (4 cells). Chi-squared df=1 tests momentum clustering."
+    },
+    {
+      "name": "btc_extremes_lunar_concentration",
+      "description": "Bitcoin extreme price events concentrate in specific moon phase windows",
+      "hypothesis": "Bitcoin extreme price events are uniformly distributed across moon phase quartiles",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 4,
+      "notes": "Define extremes as closing prices in top 10% or bottom 10%. Bin moon_phase_pct into 4 quartiles: [0,25), [25,50), [50,75), [75,100]. Count extremes per quartile. Chi-squared df=3."
+    },
+    {
+      "name": "eth_tvl_decline_recovery_asymmetry",
+      "description": "Ethereum TVL recovery magnitude depends on prior decline magnitude",
+      "hypothesis": "ETH TVL recovery magnitude is independent of prior decline magnitude",
+      "family": "temporal-trend",
+      "test_type": "bootstrap",
+      "bins": 10000,
+      "notes": "On down-days (TVL(t) < TVL(t-1)), compute decline = TVL(t-1) - TVL(t) and next-day recovery = TVL(t+1) - TVL(t). Measure Pearson ρ(decline, recovery). Permute recovery labels; count permutations with |ρ_perm| ≥ |ρ_obs|."
+    },
+    {
+      "name": "btc_closing_momentum_monthly",
+      "description": "Bitcoin 3-day price momentum exhibits non-uniform monthly patterns",
+      "hypothesis": "Bitcoin 3-day momentum direction (up/down) is uniformly distributed across all calendar months",
+      "family": "temporal-trend",
+      "test_type": "chi_squared",
+      "bins": 12,
+      "notes": "Compute 3-day MA of close_usd_cents. Flag momentum_up if MA[t] > MA[t-3]. Count by month. df=11."
+    },
+    {
+      "name": "eth_tvl_inflow_moon_phase",
+      "description": "Ethereum TVL inflow events concentrate in specific lunar phases",
+      "hypothesis": "Ethereum TVL growth days (TVL[t] > TVL[t-1]) are uniformly distributed across lunar phases",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 5,
+      "notes": "Classify each day: is_new_moon=1→phase 0, is_full_moon=1→phase 2, else use phase_pct to bin waxing/waning. Count TVL-growth days per phase. df=4."
+    },
+    {
+      "name": "sol_eth_tvl_ratio_quarterly",
+      "description": "Solana-to-total TVL ratio exhibits non-uniform quarterly seasonality",
+      "hypothesis": "Solana TVL share (sol/(sol+eth)) is uniformly distributed across calendar quarters",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 4,
+      "notes": "Compute sol_share = sol_tvl_usd_millions / (sol_tvl_usd_millions + eth_tvl_usd_millions) each day. Bin by quantile (Q1-Q4). Count by calendar quarter. df=3."
+    },
+    {
+      "name": "btc_extreme_move_month",
+      "description": "Bitcoin extreme price volatility concentrates in specific calendar months",
+      "hypothesis": "Bitcoin extreme volatility days (top 5% |close-open|/open) are uniformly distributed across calendar months",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 12,
+      "notes": "Daily volatility = |close_usd_cents - open_usd_cents| / open_usd_cents. Flag extreme if > 95th percentile. Count by month. df=11."
+    },
+    {
+      "name": "eth_btc_relative_strength_sp500",
+      "description": "Ethereum outperforms Bitcoin more frequently during S&P 500 uptrends",
+      "hypothesis": "ETH > BTC daily return outperformance is independent of S&P 500 daily direction",
+      "family": "value-distribution",
+      "test_type": "fisher_exact",
+      "bins": 4,
+      "notes": "Daily return = (close[t] - close[t-1]) / close[t-1]. ETH_out = eth_return > btc_return. SP_up = sp500_close[t] > sp500_close[t-1]. 2×2 contingency: [ETH_out∩SP_up, ETH_out∩SP_down, BTC_leads∩SP_up, BTC_leads∩SP_down]."
+    },
+    {
+      "name": "btc_intra_month_volatility",
+      "description": "BTC daily volatility differs significantly between first-half vs second-half of calendar month",
+      "hypothesis": "Bitcoin volatility is uniformly distributed across first-half and second-half of month",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 2,
+      "notes": "Volatility = (high_usd_cents - low_usd_cents) / close_usd_cents. Split days: first-half (1-15) vs second-half (16-31). Bin volatility into deciles. Count decile × half contingency. Chi-squared df=1"
+    },
+    {
+      "name": "sp500_btc_volume_surge_coincidence",
+      "description": "S&P 500 and BTC volume surge days (top 10%) co-occur significantly more than random independence",
+      "hypothesis": "S&P 500 top-decile-volume days and BTC top-decile-volume days are independent events",
+      "family": "value-distribution",
+      "test_type": "fisher_exact",
+      "bins": 4,
+      "notes": "Top 10% volume threshold per table. 2×2 contingency: [BTC_surge=Y/N] × [SP500_surge=Y/N]. Counts: [a,b,c,d]. Fisher exact test"
+    },
+    {
+      "name": "eth_price_lunar_distribution",
+      "description": "ETH closing price distributions differ across four lunar phase quadrants (new/waxing/full/waning)",
+      "hypothesis": "ETH closing price distribution is identical across all lunar phase quadrants",
+      "family": "temporal-cyclic",
+      "test_type": "chi_squared",
+      "bins": 4,
+      "notes": "Bin moon_phases.phase_pct: [0,25), [25,50), [50,75), [75,100]. For each phase, bin ETH close_usd_cents into quintiles. Build 4×5 contingency table. Chi-squared df=3"
+    },
+    {
+      "name": "eth_volume_distribution_btc_volatility",
+      "description": "Ethereum trade count distributions differ significantly when Bitcoin volatility is high vs low",
+      "hypothesis": "ETH trade count has identical distribution regardless of Bitcoin volatility level",
+      "family": "value-distribution",
+      "test_type": "ks",
+      "bins": 50,
+      "notes": "BTC volatility = (high_usd_cents - low_usd_cents) / close_usd_cents. Split by median: high vs low volatility days. Build ETH trade_count frequency distributions (50 bins) per regime. KS two-sample test"
+    },
+    {
+      "name": "eth_tvl_recovery_speed_by_season",
+      "description": "Ethereum TVL recovery duration after large drawdowns varies significantly by calendar season",
+      "hypothesis": "ETH TVL recovery time (days to regain prior peak) is independent of season (Q1/Q2/Q3/Q4)",
+      "family": "temporal-trend",
+      "test_type": "bootstrap",
+      "bins": 100,
+      "notes": "Define drawdown: TVL drops >20% from 30-day moving average. Measure recovery_days to regain lost value. Group by quarter. Permutation stat: max(median_recovery_days[q] − overall_median). Shuffle quarter labels 100 times"
+    }
+  ],
+  "significant": [
+    {
+      "name": "moon_phase_btc_distribution",
+      "description": "BTC closing price distribution: full moon vs other lunar phases",
+      "family": "temporal-cyclic",
+      "p_value": 2.9759931053575968e-95,
+      "effect_size": 0.3864569083447332,
+      "pattern_id": "2df2876f4d0ac57d"
+    },
+    {
+      "name": "eth_btc_premium_high_btc_vol",
+      "description": "Ethereum trades at higher premium to Bitcoin when Bitcoin volume spikes",
+      "family": "value-distribution",
+      "p_value": 0.000017386210718362697,
+      "effect_size": 0.5251930795847751,
+      "pattern_id": "74ed5177660dfdb0"
+    },
+    {
+      "name": "sp500_btc_volume_coupling",
+      "description": "Bitcoin volume distribution shifts when S&P 500 volume is elevated",
+      "family": "value-distribution",
+      "p_value": 1.358831958619966e-6,
+      "effect_size": 0.20010663823738248,
+      "pattern_id": "f80e41fb7b124712"
+    },
+    {
+      "name": "eth_tvl_inflow_moon_phase",
+      "description": "Ethereum TVL inflow events concentrate in specific lunar phases",
+      "family": "temporal-cyclic",
+      "p_value": 0.0,
+      "effect_size": 0.42354541893234365,
+      "pattern_id": "5ddfb7e02d8f587f"
+    },
+    {
+      "name": "btc_extreme_move_month",
+      "description": "Bitcoin extreme price volatility concentrates in specific calendar months",
+      "family": "temporal-cyclic",
+      "p_value": 0.0081452913678971,
+      "effect_size": 0.2529289702131094,
+      "pattern_id": "6bfc759b27f48f1b"
+    },
+    {
+      "name": "btc_intra_month_volatility",
+      "description": "BTC intra-month volatility: first-half vs second-half of calendar month",
+      "family": "temporal-cyclic",
+      "p_value": 0.0,
+      "effect_size": 0.5007307132860911,
+      "pattern_id": "1e61d9db3f7cc2d6"
+    },
+    {
+      "name": "sp500_btc_volume_surge_coincidence",
+      "description": "S&P 500 and BTC volume surge days (top 10%) co-occur more than chance",
+      "family": "value-distribution",
+      "p_value": 1.260725583719905e-6,
+      "effect_size": 5.49438202247191,
+      "pattern_id": "d80d7a46b17424c3"
+    },
+    {
+      "name": "eth_volume_distribution_btc_volatility",
+      "description": "Ethereum trade count distributions differ significantly when Bitcoin volatility is high vs low",
+      "family": "value-distribution",
+      "p_value": 3.549840457571256e-86,
+      "effect_size": 0.36749658002735963,
+      "pattern_id": "e294540308e63dcd"
+    }
+  ]
+}

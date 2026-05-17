@@ -25,27 +25,29 @@ pub struct Hypothesis {
 
 // ── hypothesis generation (Haiku) ─────────────────────────────────────────────
 
-const HYPO_SYSTEM: &str = r#"
-You generate statistical hypotheses about Ethereum EVM blockchain data for the Superstition analytics platform.
+const HYPO_SYSTEM_TMPL: &str = r#"
+You generate statistical hypotheses about financial and market data for the Superstition analytics platform.
 
-Corpus schema:
-  Table: erc20_transfers
-    block_timestamp  uint64  (Unix seconds since epoch, ~1438000000..present)
+Corpus schema (all values are uint64):
+{SCHEMA}
 
 Test types available (and when to use each):
   chi_squared(df)  — categorical: k uniform bins, df = k-1
-                     e.g. day-of-week (k=7, df=6), hour-of-day (k=24, df=23),
-                          weekday/weekend split (k=2, df=1)
+                     e.g. day-of-week (k=7, df=6), month (k=12, df=11),
+                          full-moon vs not (k=2, df=1)
   fisher_exact     — 2×2 contingency (EXACTLY 4 counts [a,b,c,d])
-                     e.g. AM vs PM × high-timestamp vs low-timestamp
+                     e.g. full_moon × high_price vs low_price
   ks               — continuous uniform comparison (frequency array)
-                     e.g. sub-second fractional distribution
   bootstrap        — general permutation (statistic_name + permutations)
 
 Detector constraints:
-  - Can only use columns listed above
+  - Can only use columns listed in the schema above
+  - Timestamps are Unix seconds at midnight UTC (daily granularity)
+  - Price values are in USD cents (e.g. close_usd_cents / 100 = USD price)
+  - TVL values are in USD millions
   - Returns raw COUNTS only (host computes statistics)
   - No network, no clock, no randomness
+  - Be creative: cross-table correlations are fine (e.g. high BTC price days vs moon phase)
 
 Return ONLY a JSON array — no prose, no markdown, no fences.
 "#;
@@ -55,6 +57,7 @@ pub fn generate_hypotheses(
     known_patterns: &[Hypothesis],
     significant: &[SignificantRecord],
     n: usize,
+    schema: &str,
 ) -> Result<Vec<Hypothesis>> {
     let known = if known_patterns.is_empty() {
         "None yet.".to_string()
@@ -106,9 +109,10 @@ Return a JSON array of objects with these keys:
         n = n,
     );
 
+    let hypo_system = HYPO_SYSTEM_TMPL.replace("{SCHEMA}", schema);
     let raw = client.complete(
         "claude-haiku-4-5-20251001",
-        HYPO_SYSTEM,
+        &hypo_system,
         &user,
         1024,
     )?;
@@ -123,7 +127,7 @@ Return a JSON array of objects with these keys:
 
 // ── code generation (Sonnet) ──────────────────────────────────────────────────
 
-const CODEGEN_SYSTEM: &str = r#"
+const CODEGEN_SYSTEM_TMPL: &str = r#"
 You write Rust WebAssembly detector components for the Superstition analytics platform.
 
 === WIT INTERFACE ===
@@ -131,6 +135,9 @@ You write Rust WebAssembly detector components for the Superstition analytics pl
 
 === REFERENCE IMPLEMENTATION ===
 {REF}
+
+=== CORPUS SCHEMA (all columns are uint64) ===
+{SCHEMA}
 
 === RULES ===
 1. Return ONLY Rust source code. NO markdown. NO ```rust fences. NO prose.
@@ -141,17 +148,18 @@ You write Rust WebAssembly detector components for the Superstition analytics pl
    chi_squared(df): len == df+1
    fisher_exact:    len == 4 exactly, as [a, b, c, d]
    ks / bootstrap:  len == number of bins
-6. Access corpus via corpus::iterator(handle, "erc20_transfers").
-7. Get block_timestamp: row.fields.iter().find(|(k,_)| k == "block_timestamp")
-   then match on Value::U64Val(t).
+6. Access corpus via corpus::iterator(handle, "<table_name>") using the exact table name from the schema.
+7. Access columns: row.fields.iter().find(|(k,_)| k == "<column_name>") then match Value::U64Val(v).
 8. The exported struct name should be PascalCase of the detector name.
 9. Start with #[allow(warnings)] mod bindings; as in the reference.
+10. Timestamps in these tables are Unix seconds at midnight UTC (daily data, NOT block-level).
 "#;
 
-pub fn generate_detector_code(client: &Client, hyp: &Hypothesis) -> Result<String> {
-    let system = CODEGEN_SYSTEM
+pub fn generate_detector_code(client: &Client, hyp: &Hypothesis, schema: &str) -> Result<String> {
+    let system = CODEGEN_SYSTEM_TMPL
         .replace("{WIT}", WIT_CONTENT)
-        .replace("{REF}", REFERENCE_IMPL);
+        .replace("{REF}", REFERENCE_IMPL)
+        .replace("{SCHEMA}", schema);
 
     let bins_hint = match hyp.test_type.as_str() {
         "chi_squared" => format!("TestType::ChiSquared({}) with {} counts", hyp.bins - 1, hyp.bins),
@@ -191,10 +199,12 @@ pub fn fix_detector_code(
     hyp: &Hypothesis,
     broken_code: &str,
     compile_error: &str,
+    schema: &str,
 ) -> Result<String> {
-    let system = CODEGEN_SYSTEM
+    let system = CODEGEN_SYSTEM_TMPL
         .replace("{WIT}", WIT_CONTENT)
-        .replace("{REF}", REFERENCE_IMPL);
+        .replace("{REF}", REFERENCE_IMPL)
+        .replace("{SCHEMA}", schema);
 
     let user = format!(
         r#"This detector code failed to compile:
@@ -214,7 +224,7 @@ Hypothesis:
 Fix ALL errors and return the corrected complete src/lib.rs.
 Return ONLY Rust source code. NO markdown. NO fences. NO prose."#,
         broken_code = broken_code,
-        compile_error = &compile_error[..compile_error.len().min(3000)],
+        compile_error = truncate_to_char_boundary(compile_error, 3000),
         hyp_json = serde_json::to_string_pretty(hyp)?,
     );
 
@@ -223,6 +233,12 @@ Return ONLY Rust source code. NO markdown. NO fences. NO prose."#,
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
+    let end = max_bytes.min(s.len());
+    let end = (0..=end).rev().find(|&i| s.is_char_boundary(i)).unwrap_or(0);
+    &s[..end]
+}
 
 fn extract_json_array(s: &str) -> Option<String> {
     let start = s.find('[')?;
